@@ -171,13 +171,14 @@ interface ChapTargetInterface {
     chapId: string;
     chapUrl: string;
     index?: string | number;
+    category: string;
 }
 
 export const translateChap = async (target: ChapTargetInterface, resultFolder: string) => {
     try {
         const FILE_NAME = 'chapter.txt';
-        const {bookId, chapId, chapUrl, index} = target;
-        const outputDirPath = path.join(resultFolder, `${bookId}/${bookId}_${chapId}_Chapter ${index}`);
+        const {bookId, chapId, chapUrl, index, category} = target;
+        const outputDirPath = path.join(resultFolder, `${category}/${bookId}/${bookId}_${chapId}_Chapter ${index}`);
         const saveFile = path.join(outputDirPath, FILE_NAME);
         if (fs.existsSync(saveFile)) {
             return {

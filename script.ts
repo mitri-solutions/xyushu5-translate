@@ -1,5 +1,5 @@
 import inquirer from 'inquirer'
-import {getBooks, getChaps, translateChap} from './lib'
+import {getBooks, getChaps, translateChap, translateLongContent} from './lib'
 import XLSX from 'xlsx';
 import path from "path";
 
@@ -11,7 +11,8 @@ interface ExcelBook {
     author: string;
     totalChap: string;
     translateFrom: any;
-    translateTo: any
+    translateTo: any;
+    category: string;
 }
 
 const INPUT_FILE = './input.xlsx';
@@ -27,7 +28,7 @@ const startRun = async () => {
             console.log('>> Error: Can"t get chaps')
             return []
         })
-        const {translateFrom, translateTo} = book;
+        const {translateFrom, translateTo, category} = book;
         if (!translateFrom || !translateTo || !chaps) {
             console.log("Not found chap info")
             continue;
@@ -42,7 +43,8 @@ const startRun = async () => {
                 bookId: book?.bookId,
                 chapId: chap?.url?.split('/')?.[3],
                 chapUrl: chap.url,
-                index: i
+                index: i,
+                category
             }
 
             console.log(" => Start: ", target?.index)
@@ -69,6 +71,29 @@ const startRun = async () => {
             }
         }
     }
+}
+
+async function translateResult() {
+    const file = XLSX.readFile(INPUT_FILE)
+    const sheets = file.SheetNames[0];
+    const books: ExcelBook[] = XLSX.utils.sheet_to_json(
+        file.Sheets[sheets]);
+    let result = []
+    for (const book of books) {
+        const name = await translateLongContent(book?.name);
+        const category = await translateLongContent(book?.category);
+        const intro = await translateLongContent(book?.intro);
+        result.push({
+            ...book,
+            name,
+            category,
+            intro
+        })
+    }
+    const ws = XLSX.utils.json_to_sheet(result)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Result')
+    XLSX.writeFile(wb, INPUT_FILE)
 }
 
 
@@ -116,7 +141,7 @@ const startRun = async () => {
         resultBooks = [...books, ...resultBooks || []]
     }
 
-    const excelData = resultBooks?.map((item) => {
+    const excelData: ExcelBook[] = resultBooks?.map((item) => {
         return {
             bookId: item.bookId,
             name: item.name,
@@ -133,13 +158,33 @@ const startRun = async () => {
     // Save to excel
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Responses')
+    XLSX.utils.book_append_sheet(wb, ws, 'Input')
     XLSX.writeFile(wb, INPUT_FILE)
-    console.log(">>> Please enter the chap you want in file input.xlsx, then press Enter.")
     await inquirer.prompt([{
         type: 'boolean',
         name: 'from',
         message: ">>> Please enter the chap you want in file input.xlsx, then press Enter"
     }]);
     await startRun()
+
+    const {isTranslate} = await inquirer.prompt([{
+        type: 'confirm',
+        name: 'isTranslate',
+        message: "Do you want to translate input.xlsx file to VN?"
+    }]);
+
+    if (isTranslate) {
+        try {
+            console.log("Wait a moment...")
+            await translateResult();
+        } catch (e) {
+            console.log("Translate Error. Please try again...")
+        }
+    }
+
+    await inquirer.prompt([{
+        type: 'confirm',
+        name: 'done',
+        message: "All done! Press Enter to exit"
+    }]);
 })()
