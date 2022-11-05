@@ -2,12 +2,13 @@ const axios = require('axios');
 const cheerio = require('cheerio')
 const path = require("path");
 const fs = require("fs");
+const gpk = require("gbk")
 
 const getBooks = async (categoryUrl = '') => {
     const html = await axios
         .get(categoryUrl, { responseType: 'arraybuffer' })
         .then((res) => res.data);
-    const $ = cheerio.load(new TextDecoder('chinese').decode(html), {
+    const $ = cheerio.load(gpk.toString('utf-8', html), {
         decodeEntities: false,
     });
     const items = $('#alistbox')
@@ -53,6 +54,8 @@ const getBooks = async (categoryUrl = '') => {
         .replace('小说最新列表', '')
         .replace('List', '');
 
+    console.log(">> Detected category: ", category)
+
     return {
         items,
         category,
@@ -75,7 +78,7 @@ const getChaps = async (bookUrl) => {
     const html = await axios
         .get(bookUrl, { responseType: 'arraybuffer' })
         .then((res) => res.data);
-    const $ = cheerio.load(new TextDecoder('chinese').decode(html), {
+    const $ = cheerio.load(gpk.toString('utf-8', html), {
         decodeEntities: false,
     });
     // @ts-ignore
@@ -132,7 +135,7 @@ const getChapContent = async (path) => {
         .then((res) => res.data)
         .catch(() => {
         });
-    const $ = cheerio.load(new TextDecoder('chinese').decode(html), {
+    const $ = cheerio.load(gpk.toString('utf-8', html), {
         decodeEntities: false,
     });
     return $(
@@ -173,7 +176,7 @@ const translate = async (text) => {
         .join('\n');
 };
 
- const doTranslate = async (texts, rgp) => {
+const doTranslate = async (texts, rgp) => {
     const appId = '000000000A9F426B41914349A3EC94D7073FF941';
     const baseURL =
         'https://api.microsofttranslator.com/v2/ajax.svc/TranslateArray';
@@ -272,7 +275,6 @@ const translateChap = async (
         };
     }
 };
-
 
 module.exports = {
     getBooks,

@@ -2,7 +2,6 @@ const inquirer= require('inquirer')
 const {getBooks, getChaps, translateChap, translateLongContent} = require('./lib');
 const XLSX = require('xlsx');
 const path = require("path");
-
 const INPUT_FILE = './input.xlsx';
 
 const startRun = async () => {
@@ -39,8 +38,7 @@ const startRun = async () => {
             const MAX_TRY_TIME = 10;
             let TRY_TIME = 0;
             while (TRY_TIME < MAX_TRY_TIME) {
-                const resultFolder = path.resolve(__dirname, './result');
-                const translate = await translateChap(target, resultFolder)
+                const translate = await translateChap(target, './result')
                 if (translate.status) {
                     console.log("\t\t Success: " + translate.message)
                     break;
