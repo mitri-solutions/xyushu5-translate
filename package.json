@@ -3,7 +3,6 @@
     "axios": "^1.1.3",
     "cheerio": "^1.0.0-rc.12",
     "inquirer": "8",
-    "pkg": "^5.8.0",
     "xlsx": "^0.18.5"
   },
   "name": "hehe",
@@ -12,6 +11,6 @@
   "license": "MIT",
   "scripts": {
     "start": "node main.js",
-    "bundle": "pkg main.js --output ./bundle/mate-translate"
+    "build":"pkg dist/index.js --targets node16-win-x64"
   }
 }
