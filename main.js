@@ -1,89 +1,74 @@
-const inquirer= require('inquirer')
-const {getBooks, getChaps, translateChap, translateLongContent} = require('./lib');
+const inquirer = require('inquirer')
+const {getBooks, getChaps, translateChap, translateLongContent} = require('./libs/lib');
 const XLSX = require('xlsx');
-const path = require("path");
-const INPUT_FILE = './input.xlsx';
+const fs = require("fs")
+const {getCurrentDate} = require("./libs/until");
 
-const startRun = async () => {
-    const file = XLSX.readFile(INPUT_FILE)
-    const sheets = file.SheetNames[0];
-    const books= XLSX.utils.sheet_to_json(
-        file.Sheets[sheets]);
-    for (const book of books) {
-        console.log(`============${book.bookId}===========`)
-        const chaps = await getChaps(book?.url).catch(err => {
-            console.log('>> Error: Can"t get chaps')
-            return []
-        })
-        const {translateFrom, translateTo, category} = book;
-        if (!translateFrom || !translateTo || !chaps) {
-            console.log("Not found chap info")
-            continue;
-        }
-        for (let i = translateFrom; i <= translateTo; i++) {
-            const chap = chaps.find(chap => chap.index === i);
-            if (!chap) {
-                console.log("Not find the chap")
-                continue;
-            }
-            const target = {
-                bookId: book?.bookId,
-                chapId: chap?.url?.split('/')?.[3],
-                chapUrl: chap.url,
-                index: i,
-                category
-            }
+const INPUT_DIR = './input';
+const OUTPUT_DIR = './output';
 
-            console.log(" => Start: ", target?.index)
-            const MAX_TRY_TIME = 10;
-            let TRY_TIME = 0;
-            while (TRY_TIME < MAX_TRY_TIME) {
-                const translate = await translateChap(target, './result')
-                if (translate.status) {
-                    console.log("\t\t Success: " + translate.message)
-                    break;
-                } else {
-                    TRY_TIME++;
-                    console.log("\t\t Error: " + translate.message)
-                    if (translate.message === '404') {
-                        console.log(target.chapUrl)
-                        break;
-                    }
+console.log(`
+__  ___   ___   _ ____  _   _ _   _ ____  
+\\ \\/ \\ \\ / | | | / ___|| | | | | | | ___| 
+ \\  / \\ V /| | | \\___ \\| |_| | | | |___ \\ 
+ /  \\  | | | |_| |___) |  _  | |_| |___) |
+/_/\\_\\ |_|  \\___/|____/|_| |_|\\___/|____/ 
 
-                    await new Promise((resolve) => {
-                        setTimeout(resolve, 30 * 1000);
-                    });
-                }
-            }
-        }
-    }
+         by jamesngdev (0971010421)
+-----------------------------------------------
+`)
+
+if (!fs.existsSync(INPUT_DIR)) {
+    fs.mkdirSync(INPUT_DIR)
+}
+
+if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR)
 }
 
 async function translateResult() {
-    const file = XLSX.readFile(INPUT_FILE)
+    const files = fs.readdirSync(INPUT_DIR);
+    const {fileName} = await inquirer.prompt([{
+        type: 'list',
+        name: 'fileName',
+        choices: files,
+        message: "Select the file you want to translate: "
+    }]);
+
+    const file = XLSX.readFile(`${INPUT_DIR}/${fileName}`)
     const sheets = file.SheetNames[0];
     const books = XLSX.utils.sheet_to_json(
         file.Sheets[sheets]);
     let result = []
+
+    let i = 0;
     for (const book of books) {
+        process.stdout.write(`Translating... ${i}/${books?.length}... \r`);
+        i++;
         const name = await translateLongContent(book?.name);
         const category = await translateLongContent(book?.category);
         const intro = await translateLongContent(book?.intro);
         result.push({
-            ...book,
+            bookId: book.bookId,
             name,
+            author: book.author,
             category,
-            intro
+            intro,
+            url: book.url,
+            totalChap: book?.chappers?.length || 0,
+            translateFrom: book?.translateFrom,
+            translateTo: book?.translateTo,
         })
     }
     const ws = XLSX.utils.json_to_sheet(result)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Result')
-    XLSX.writeFile(wb, INPUT_FILE)
+    XLSX.writeFile(wb, `${OUTPUT_DIR}/${fileName}`)
+    console.log("Translated >> " + fileName)
 }
 
 
-(async () => {
+const generateBookExcel = async () => {
     // Enter the link
     const {url} = await inquirer.prompt([{
         type: 'input',
@@ -91,7 +76,6 @@ async function translateResult() {
         message: "Enter category url: ",
         default: "https://www.xyushu5.com/sort3/1/"
     }]);
-    console.log(">>> Wait a moment...")
 
     const {pagination, category} = await getBooks(url);
     const {paginations, totalPage} = pagination;
@@ -109,68 +93,177 @@ async function translateResult() {
 
     console.log(">>> Wait a moment...")
 
-    let resultBooks = [];
-    for (let i = from; i <= to; i++) {
-        const page = paginations?.find(page => page.label == i.toString());
+    const getBookOfPage = async (pageNumber) => {
+        const page = paginations?.find(page => page.label == pageNumber.toString());
         if (!page?.href) {
-            continue;
+            return [];
         }
         const {items: books} = await getBooks(page.href);
-        for (let j = 0; j < books.length; j++) {
-            process.stdout.write(`Get ${j}/${books?.length} complete... \r`);
-            const book = books[j];
-            // @ts-ignore
-            const chappers = await getChaps(book?.url);
-            // @ts-ignore
-            book.chappers = chappers;
-        }
-        resultBooks = [...books, ...resultBooks || []]
+
+        const _books = await Promise.all(books?.map(book => {
+            return new Promise(async (resolve) => {
+                const chaps = await getChaps(book?.url)
+                return resolve({
+                    ...book,
+                    chappers: chaps
+                })
+            })
+        }));
+        return _books?.reduce((rs, book) => {
+            rs = [...rs, book]
+            return rs;
+        }, []);
     }
 
-    const excelData = resultBooks?.map((item) => {
+    let resultBooks = [];
+    for (let i = from; i <= to; i++) {
+        resultBooks.push(i);
+    }
+
+    const books = await Promise.all(resultBooks?.map((num) => getBookOfPage(num)))
+
+    // ID Truyện, Tên Truyện, Tên Tác Giả, Thể Loại, Tóm Tắt Truyện, Link, Chap dịch từ
+    const excelData = books?.flat(1)?.map((item) => {
         return {
             bookId: item.bookId,
             name: item.name,
-            url: item.url,
-            intro: item.intro,
             author: item.author,
-            totalChap: item?.chappers?.length || 0,
             category: category,
+            intro: item.intro,
+            url: item.url,
+            totalChap: item?.chappers?.length || 0,
             translateFrom: "",
             translateTo: ""
         }
-    })
-
+    });
+    const excelName = `${category}_${from}_${to}_${getCurrentDate()}`
     // Save to excel
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Input')
-    XLSX.writeFile(wb, INPUT_FILE)
-    await inquirer.prompt([{
-        type: 'boolean',
-        name: 'from',
-        message: ">>> Please enter the chap you want in file input.xlsx, then press Enter"
-    }]);
-    await startRun()
+    XLSX.writeFile(wb, `${INPUT_DIR}/${excelName}.xlsx`);
+    console.log(`Exported: ${excelName}`);
+}
 
-    const {isTranslate} = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'isTranslate',
-        message: "Do you want to translate input.xlsx file to VN?"
+const translateBooks = async () => {
+    // result
+    let errorChaps = []
+    let totalCount = 0;
+    let successCount = 0;
+
+    const files = fs.readdirSync(INPUT_DIR);
+    const {fileName} = await inquirer.prompt([{
+        type: 'list',
+        name: 'fileName',
+        choices: files,
+        message: "Select the file you want to translate: "
     }]);
 
-    if (isTranslate) {
-        try {
-            console.log("Wait a moment...")
-            await translateResult();
-        } catch (e) {
-            console.log("Translate Error. Please try again...")
+    const file = XLSX.readFile(`${INPUT_DIR}/${fileName}`)
+    const sheets = file.SheetNames[0];
+    const books = XLSX.utils.sheet_to_json(
+        file.Sheets[sheets]);
+    for (const book of books) {
+        const {translateFrom, translateTo, category} = book;
+        if (!translateFrom || !translateTo) {
+            continue;
+        }
+
+        console.log(`============${book.bookId}===========`)
+        const chaps = await getChaps(book?.url).catch(err => {
+            console.log('>> Error: Can"t get chaps')
+            return []
+        })
+
+        for (let i = translateFrom; i <= translateTo; i++) {
+            const chap = chaps.find(chap => chap.index === i);
+            if (!chap) {
+                console.log("Not find the chap")
+                continue;
+            }
+            const target = {
+                bookId: book?.bookId,
+                chapId: chap?.url?.split('/')?.[3],
+                chapUrl: chap.url,
+                index: i,
+                category
+            }
+
+            console.log(" => Start: ", target?.index)
+            const MAX_TRY_TIME = 10;
+            let TRY_TIME = 0;
+            let success = false;
+            while (TRY_TIME < MAX_TRY_TIME) {
+                const translate = await translateChap(target, './result')
+                if (translate.status) {
+                    console.log("\t\t Success: " + translate.message)
+                    success = true;
+                    break;
+                } else {
+                    TRY_TIME++;
+                    console.log("\t\t Error: " + translate.message)
+                    if (translate.message === '404') {
+                        console.log(target.chapUrl)
+                        break;
+                    }
+
+                    await new Promise((resolve) => {
+                        setTimeout(resolve, 30 * 1000);
+                    });
+                }
+            }
+
+            totalCount++;
+            if (success) {
+                successCount++;
+            } else {
+                errorChaps = [...errorChaps, target]
+            }
         }
     }
 
-    await inquirer.prompt([{
-        type: 'confirm',
-        name: 'done',
-        message: "All done! Press Enter to exit"
+    // Tổng số chap đã dịch được
+    // Tổng số chap lỗi
+    // Liệt kê chap lỗi (bao gồm các thông tin như: đường link chap, chap thuộc thư mục truyện nào, thuộc thư mục chap nào của truyện đó
+
+    const errorChapText = errorChaps.reduce((rs, chap) => {
+        rs += `${chap.chapUrl}\t${chap.bookId}\t${chap.category}\n`
+        return rs;
+    }, `url                  \tbook   \tcategory\n`);
+
+    console.log(`
+-----------ALL DONE ----------------
+Total: ${totalCount} 
+Error: ${errorChaps?.length}
+--------------------------
+${errorChapText}
+----------------------
+    `)
+}
+
+const OPTIONS = {
+    GET_BOOK: 'Get books',
+    TRANSLATE: 'Translate book',
+    TRANSLATE_INPUT: 'Translate input'
+}
+
+const start = async () => {
+    const {method} = await inquirer.prompt([{
+        type: 'list',
+        name: 'method',
+        choices: [OPTIONS.GET_BOOK, OPTIONS.TRANSLATE, OPTIONS.TRANSLATE_INPUT],
+        message: "Select the function you want to use: "
     }]);
-})()
+    switch (method) {
+        case OPTIONS.GET_BOOK:
+            await generateBookExcel();
+            break;
+        case OPTIONS.TRANSLATE:
+            await translateBooks();
+            break;
+        case OPTIONS.TRANSLATE_INPUT:
+            await translateResult();
+            break;
+    }
+};
+start()

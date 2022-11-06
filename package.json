@@ -4,6 +4,7 @@
     "cheerio": "^1.0.0-rc.12",
     "gbk": "^0.1.0",
     "inquirer": "8",
+    "uuid": "^9.0.0",
     "xlsx": "^0.18.5"
   },
   "name": "hehe",
@@ -11,7 +12,6 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "node main.js",
-    "build": "pkg dist/index.js --targets node16-win-x64"
+    "start": "node main.js"
   }
 }
