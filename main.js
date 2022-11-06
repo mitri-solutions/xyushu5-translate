@@ -265,5 +265,11 @@ const start = async () => {
             await translateResult();
             break;
     }
+
+    await inquirer.prompt([{
+        type: 'text',
+        name: 'method',
+        message: "DONE. Press Enter to exit "
+    }]);
 };
 start()
