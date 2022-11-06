@@ -2,7 +2,7 @@ const inquirer = require('inquirer')
 const {getBooks, getChaps, translateChap, translateLongContent} = require('./libs/lib');
 const XLSX = require('xlsx');
 const fs = require("fs")
-const {getCurrentDate} = require("./libs/until");
+const {getCurrentDate, sleep} = require("./libs/until");
 
 const INPUT_DIR = './input';
 const OUTPUT_DIR = './output';
@@ -45,20 +45,33 @@ async function translateResult() {
     for (const book of books) {
         process.stdout.write(`Translating... ${i}/${books?.length}... \r`);
         i++;
-        const name = await translateLongContent(book?.name);
-        const category = await translateLongContent(book?.category);
-        const intro = await translateLongContent(book?.intro);
-        result.push({
-            bookId: book.bookId,
-            name,
-            author: book.author,
-            category,
-            intro,
-            url: book.url,
-            totalChap: book?.chappers?.length || 0,
-            translateFrom: book?.translateFrom,
-            translateTo: book?.translateTo,
-        })
+        let tryCount = 0;
+        let isSuccess = false;
+        while (tryCount < 5) {
+            try {
+                const name = await translateLongContent(book?.name);
+                const category = await translateLongContent(book?.category);
+                const intro = await translateLongContent(book?.intro);
+                result.push({
+                    bookId: book.bookId,
+                    name,
+                    author: book.author,
+                    category,
+                    intro,
+                    url: book.url,
+                    totalChap: book?.chappers?.length || 0,
+                    translateFrom: book?.translateFrom,
+                    translateTo: book?.translateTo,
+                })
+                break;
+            } catch (e) {
+                tryCount++;
+                await sleep(10 * 1000)
+            }
+        }
+        if (!isSuccess) {
+            result.push(book)
+        }
     }
     const ws = XLSX.utils.json_to_sheet(result)
     const wb = XLSX.utils.book_new()
