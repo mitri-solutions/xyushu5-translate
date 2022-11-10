@@ -6,6 +6,7 @@ let method;
 let lang;
 
 const doTranslate = async (texts, rgp) => {
+    // console.log(texts);
     const appId = '000000000A9F426B41914349A3EC94D7073FF941';
     const baseURL =
         'https://api.microsofttranslator.com/v2/ajax.svc/TranslateArray';
@@ -28,6 +29,11 @@ const doTranslate = async (texts, rgp) => {
         });
     if (responseTexts?.includes('AppId is over the quota')) {
         throw new Error('Limited');
+    }
+
+
+    if (typeof responseTexts === 'string') {
+       return "";
     }
 
     return (responseTexts || [])
