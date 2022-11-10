@@ -2,6 +2,8 @@ const axios = require('axios');
 const {v4: uuidv4} = require('uuid');
 const fs = require("fs");
 const inquirer = require("inquirer");
+let defaultMethod;
+let defaultLang;
 
 const doTranslate = async (texts, rgp) => {
     const appId = '000000000A9F426B41914349A3EC94D7073FF941';
@@ -13,7 +15,7 @@ const doTranslate = async (texts, rgp) => {
             params: {
                 appId,
                 texts: JSON.stringify(texts),
-                to: 'vi',
+                to: defaultLang,
                 loc: 'en',
                 ctr: null,
                 ref: 'WidgetV3',
@@ -65,7 +67,7 @@ const microsoftTranslate = async (text = []) => {
         },
         params: {
             'api-version': '3.0',
-            'to': ['vi']
+            'to': [defaultLang]
         },
         data: texts,
         responseType: 'json'
@@ -77,9 +79,10 @@ const TRANSLATE_METHOD = {
     MATE: 'Mate Translate',
     MICROSOFT: 'Microsoft'
 }
-let defaultMethod;
+
 module.exports = async (texts = []) => {
     let translateMethod;
+    let lang;
     if (defaultMethod) {
         translateMethod = defaultMethod;
     } else {
@@ -91,6 +94,15 @@ module.exports = async (texts = []) => {
         }]);
         translateMethod = translate
         defaultMethod = translate
+    }
+
+    if (!defaultLang) {
+        const {selectedLang} = await inquirer.prompt([{
+            type: 'text',
+            name: 'selectedLang',
+            message: "Translate to (vi: Vietnam, en: English) "
+        }]);
+        defaultLang = selectedLang
     }
 
     if (translateMethod === TRANSLATE_METHOD.MATE) {
