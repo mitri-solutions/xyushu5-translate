@@ -2,8 +2,8 @@ const axios = require('axios');
 const {v4: uuidv4} = require('uuid');
 const fs = require("fs");
 const inquirer = require("inquirer");
-let defaultMethod;
-let defaultLang;
+let method;
+let lang;
 
 const doTranslate = async (texts, rgp) => {
     const appId = '000000000A9F426B41914349A3EC94D7073FF941';
@@ -15,7 +15,7 @@ const doTranslate = async (texts, rgp) => {
             params: {
                 appId,
                 texts: JSON.stringify(texts),
-                to: defaultLang,
+                to: lang,
                 loc: 'en',
                 ctr: null,
                 ref: 'WidgetV3',
@@ -67,7 +67,7 @@ const microsoftTranslate = async (text = []) => {
         },
         params: {
             'api-version': '3.0',
-            'to': [defaultLang]
+            'to': [lang]
         },
         data: texts,
         responseType: 'json'
@@ -80,34 +80,32 @@ const TRANSLATE_METHOD = {
     MICROSOFT: 'Microsoft'
 }
 
-module.exports = async (texts = []) => {
-    let translateMethod;
-    let lang;
-    if (defaultMethod) {
-        translateMethod = defaultMethod;
-    } else {
-        const {translate} = await inquirer.prompt([{
-            type: 'list',
-            name: 'translate',
-            choices: [TRANSLATE_METHOD.MATE, TRANSLATE_METHOD.MICROSOFT],
-            message: "Select translate method: "
-        }]);
-        translateMethod = translate
-        defaultMethod = translate
-    }
-
-    if (!defaultLang) {
-        const {selectedLang} = await inquirer.prompt([{
-            type: 'text',
-            name: 'selectedLang',
-            message: "Translate to (vi: Vietnam, en: English) "
-        }]);
-        defaultLang = selectedLang
-    }
-
-    if (translateMethod === TRANSLATE_METHOD.MATE) {
+const translate = async (texts = []) => {
+    if (method === TRANSLATE_METHOD.MATE) {
         return mateTranslate(texts);
     } else {
         return microsoftTranslate(texts)
     }
+}
+
+const setupTranslate = async () => {
+    const {translate} = await inquirer.prompt([{
+        type: 'list',
+        name: 'translate',
+        choices: [TRANSLATE_METHOD.MATE, TRANSLATE_METHOD.MICROSOFT],
+        message: "Select translate method: "
+    }]);
+    method = translate;
+
+    const {selectedLang} = await inquirer.prompt([{
+        type: 'text',
+        name: 'selectedLang',
+        message: "Translate to (vi: Vietnam, en: English) "
+    }]);
+    lang = selectedLang;
+}
+
+module.exports = {
+    translate,
+    setupTranslate
 }

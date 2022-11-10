@@ -3,6 +3,7 @@ const {getBooks, getChaps, translateChap, translateLongContent} = require('./lib
 const XLSX = require('xlsx');
 const fs = require("fs")
 const {getCurrentDate, sleep} = require("./libs/until");
+const {setupTranslate} = require("./libs/translate");
 
 const INPUT_DIR = './input';
 const OUTPUT_DIR = './output';
@@ -272,9 +273,11 @@ const start = async () => {
             await generateBookExcel();
             break;
         case OPTIONS.TRANSLATE:
+            await setupTranslate();
             await translateBooks();
             break;
         case OPTIONS.TRANSLATE_INPUT:
+            await setupTranslate();
             await translateResult();
             break;
     }
