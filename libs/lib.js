@@ -143,7 +143,7 @@ const getChapContent = async (path) => {
         `#main div[style="line-height: 30px;padding: 10px 50px;word-wrap: break-word;"]`,
     )
         .text()
-        .trim().replace("新御书屋 https://www.xyushu5.com", "");
+        .trim().replace("- 新御书屋  https://www.xyushu5.com", "");
 };
 
 const translateLongContent = async (text) => {
@@ -212,6 +212,7 @@ const translateChap = async (
 module.exports = {
     getBooks,
     getChaps,
+    getChapContent,
     translateChap,
     translateLongContent
 }
