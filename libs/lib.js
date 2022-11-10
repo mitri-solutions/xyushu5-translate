@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const gpk = require("gbk")
 const translate = require("./translate");
+const _ = require('lodash');
 
 const getBooks = async (categoryUrl = '') => {
     const html = await axios
@@ -68,11 +69,6 @@ const getBooks = async (categoryUrl = '') => {
 };
 
 
-function getUniqueListBy(arr, key) {
-    // @ts-ignore
-    return [...new Map(arr.map((item) => [item[key], item])).values()];
-}
-
 const getChaps = async (bookUrl) => {
     const html = await axios
         .get(bookUrl, {responseType: 'arraybuffer'})
@@ -84,18 +80,24 @@ const getChaps = async (bookUrl) => {
     const chapElements = $('#box dl').children();
 
     let readyToSaveChapElement = false;
-    let result = [];
-    // @ts-ignore
+    let chaps = [];
     for (const chapElement of chapElements) {
-        // @ts-ignore
         if (
             !readyToSaveChapElement &&
             chapElement.name === 'dt' &&
-            chapElement.id === 'chapter_list'
+            $(chapElement).attr('id') === 'chapter_list'
         ) {
             readyToSaveChapElement = true;
-            break;
+            continue;
         }
+
+        if (!readyToSaveChapElement) {
+            continue;
+        }
+        if ($(chapElement).attr('class') !== 'chapter_list') {
+            continue;
+        }
+
         const chapLinkElement = $(chapElement).find('a');
         let url = chapLinkElement.attr('href');
         if (url?.includes('javascript:Chapter')) {
@@ -107,24 +109,24 @@ const getChaps = async (bookUrl) => {
             url = `/read/${aid}/${cid}/`;
         }
 
-        const title = chapLinkElement.text();
-        const index = title.match(/\d/g)?.join('');
+        const title = chapLinkElement.text().trim()
 
         if (url) {
-            result = [
-                ...result,
+            chaps = [
+                ...chaps,
                 {
                     url,
-                    title: chapLinkElement.text(),
-                    index: Number(index),
+                    title
                 },
             ];
         }
     }
 
-    return getUniqueListBy(result, 'url').sort(
-        (a, b) => a.index - b.index,
-    );
+
+    const sortedChaps = _.chunk(chaps, 3).map(chunk => chunk.reverse()).flat(2);
+
+
+    return sortedChaps.map((chap, index) => ({...chap, index: index + 1}));
 };
 
 const getChapContent = async (path) => {
@@ -141,7 +143,7 @@ const getChapContent = async (path) => {
         `#main div[style="line-height: 30px;padding: 10px 50px;word-wrap: break-word;"]`,
     )
         .text()
-        .trim();
+        .trim().replace("新御书屋 https://www.xyushu5.com", "");
 };
 
 const translateLongContent = async (text) => {
