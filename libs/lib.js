@@ -3,7 +3,7 @@ const cheerio = require('cheerio')
 const path = require("path");
 const fs = require("fs");
 const gpk = require("gbk")
-const translate = require("./translate");
+const {translate} = require("./translate");
 const _ = require('lodash');
 
 const getBooks = async (categoryUrl = '') => {
