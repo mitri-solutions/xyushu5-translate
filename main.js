@@ -27,6 +27,20 @@ if (!fs.existsSync(OUTPUT_DIR)) {
     fs.mkdirSync(OUTPUT_DIR)
 }
 
+async function translateRetry(text, maxTryCount = 5, tryCountTimeout = 60 * 1000) {
+    let tryCount = 0;
+    while (tryCount < maxTryCount) {
+        try {
+            const translated = await translateLongContent(text);
+            return translated;
+        } catch (e) {
+            console.log(`\t\t\t\t\t\tTranslate error: Try ${tryCount}/${maxTryCount} times <${e.message}>`);
+            await sleep(tryCountTimeout);
+        }
+    }
+    return Promise.reject('Can"t not reject')
+}
+
 async function translateResult() {
     const files = fs.readdirSync(INPUT_DIR);
     const {fileName} = await inquirer.prompt([{
@@ -44,21 +58,21 @@ async function translateResult() {
 
     let i = 0;
     for (const book of books) {
-        process.stdout.write(`Translating... ${i}/${books?.length}... \r`);
+        console.log(`Translating... ${i}/${books?.length}... \r`);
         i++;
         let tryCount = 0;
-        let isSuccess = false;
         while (tryCount < 5) {
             try {
-                const name = await translateLongContent(book?.name);
-                const category = await translateLongContent(book?.category);
-                const intro = await translateLongContent(book?.intro);
+                const SPLITTER_CONTENT = '[[00]]';
+                const totalContent = [book?.name, book?.category, book?.intro].join(SPLITTER_CONTENT);
+                const translatedContent = await translateRetry(totalContent);
+                const [name, category, intro] = translatedContent.split(SPLITTER_CONTENT);
                 result.push({
                     bookId: book.bookId,
-                    name,
+                    name: (name || "").trim(),
                     author: book.author,
-                    category,
-                    intro,
+                    category : (category | "").trim(),
+                    intro: (intro || "").trim(),
                     url: book.url,
                     totalChap: book?.chappers?.length || 0,
                     translateFrom: book?.translateFrom,
@@ -67,11 +81,8 @@ async function translateResult() {
                 break;
             } catch (e) {
                 tryCount++;
-                await sleep(10 * 1000)
+                await sleep(60 * 1000)
             }
-        }
-        if (!isSuccess) {
-            result.push(book)
         }
     }
     const ws = XLSX.utils.json_to_sheet(result)
@@ -177,7 +188,20 @@ const translateBooks = async () => {
     const sheets = file.SheetNames[0];
     const books = XLSX.utils.sheet_to_json(
         file.Sheets[sheets]);
-    for (const book of books) {
+
+    console.log(`Detected ${books?.length} books`)
+    const {from, to} = await inquirer.prompt([{
+        type: 'number',
+        name: 'from',
+        message: "From book: "
+    }, {
+        type: 'number',
+        name: 'to',
+        message: "To book: "
+    }]);
+
+    for (let i = from; i <= to; i++) {
+        const book = books[i];
         const {translateFrom, translateTo, category} = book;
         if (!translateFrom || !translateTo) {
             continue;
