@@ -58,7 +58,7 @@ async function translateResult() {
 
     let i = 0;
     for (const book of books) {
-        console.log(`Translating... ${i}/${books?.length}... \r`);
+        console.log(`Translating ${i}/${books?.length}... \r`);
         i++;
         let tryCount = 0;
         while (tryCount < 5) {
@@ -67,11 +67,12 @@ async function translateResult() {
                 const totalContent = [book?.name, book?.category, book?.intro].join(SPLITTER_CONTENT);
                 const translatedContent = await translateRetry(totalContent);
                 const [name, category, intro] = translatedContent.split(SPLITTER_CONTENT);
+                console.log(">>> Done")
                 result.push({
                     bookId: book.bookId,
                     name: (name || "").trim(),
                     author: book.author,
-                    category : (category | "").trim(),
+                    category: (category || "").trim(),
                     intro: (intro || "").trim(),
                     url: book.url,
                     totalChap: book?.chappers?.length || 0,
@@ -81,6 +82,7 @@ async function translateResult() {
                 break;
             } catch (e) {
                 tryCount++;
+                console.log(">>> Error <try>: ", e.message)
                 await sleep(60 * 1000)
             }
         }
@@ -88,6 +90,7 @@ async function translateResult() {
     const ws = XLSX.utils.json_to_sheet(result)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Result')
+
     XLSX.writeFile(wb, `${OUTPUT_DIR}/${fileName}`)
     console.log("Translated >> " + fileName)
 }
@@ -161,7 +164,18 @@ const generateBookExcel = async () => {
             translateTo: ""
         }
     });
-    const excelName = `${category}_${from}_${to}_${getCurrentDate()}`
+    let excelName = `${category}_${from}_${to}_${getCurrentDate()}`
+    // Find if exists
+    const filePath = `${INPUT_DIR}/${excelName}`;
+    const existFile = fs.existsSync(filePath + ".xlsx");
+    if (existFile) {
+        const {prefix} = await inquirer.prompt([{
+            type: 'text',
+            name: 'prefix',
+            message: "File exist, please enter prefix: "
+        }]);
+        excelName += "_" + prefix;
+    }
     // Save to excel
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
@@ -201,7 +215,7 @@ const translateBooks = async () => {
     }]);
 
     for (let i = from; i <= to; i++) {
-        const book = books[i];
+        const book = books[i - 1];
         const {translateFrom, translateTo, category} = book;
         if (!translateFrom || !translateTo) {
             continue;
