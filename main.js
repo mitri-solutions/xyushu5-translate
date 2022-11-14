@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const fs = require("fs")
 const {getCurrentDate, sleep} = require("./libs/until");
 const {setupTranslate} = require("./libs/translate");
+const {updateNewVersion} = require("./libs/update")
 
 const INPUT_DIR = './input';
 const OUTPUT_DIR = './output';
@@ -296,14 +297,15 @@ ${errorChapText}
 const OPTIONS = {
     GET_BOOK: 'Get books',
     TRANSLATE: 'Translate book',
-    TRANSLATE_INPUT: 'Translate input'
+    TRANSLATE_INPUT: 'Translate input',
+    UPDATE_NEW_VERSION: 'Update new version'
 }
 
 const start = async () => {
     const {method} = await inquirer.prompt([{
         type: 'list',
         name: 'method',
-        choices: [OPTIONS.GET_BOOK, OPTIONS.TRANSLATE, OPTIONS.TRANSLATE_INPUT],
+        choices: [OPTIONS.GET_BOOK, OPTIONS.TRANSLATE, OPTIONS.TRANSLATE_INPUT, OPTIONS.UPDATE_NEW_VERSION],
         message: "Select the function you want to use: "
     }]);
     switch (method) {
@@ -317,6 +319,9 @@ const start = async () => {
         case OPTIONS.TRANSLATE_INPUT:
             await setupTranslate();
             await translateResult();
+            break;
+        case OPTIONS.UPDATE_NEW_VERSION:
+            await updateNewVersion();
             break;
     }
 
