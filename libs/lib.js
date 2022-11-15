@@ -124,9 +124,13 @@ const getChaps = async (bookUrl) => {
 
 
     const sortedChaps = _.chunk(chaps, 3).map(chunk => chunk.reverse()).flat(2);
+    const _chaps =  sortedChaps.map((chap, index) => ({...chap, index: index + 1}));
+    const intro = $('#aboutbook').text().trim();
 
-
-    return sortedChaps.map((chap, index) => ({...chap, index: index + 1}));
+    return {
+        chaps: _chaps,
+        intro
+    }
 };
 
 const getChapContent = async (path) => {

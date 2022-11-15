@@ -141,10 +141,11 @@ const generateBookExcel = async () => {
 
         const _books = await Promise.all(books?.map(book => {
             return new Promise(async (resolve) => {
-                const chaps = await getChaps(book?.url)
+                const {chaps, intro} = await getChaps(book?.url)
                 return resolve({
                     ...book,
-                    chappers: chaps
+                    chappers: chaps,
+                    intro
                 })
             })
         }));
@@ -227,7 +228,7 @@ const translateBooks = async () => {
         }
 
         console.log(`============${book.bookId}===========`)
-        const chaps = await getChaps(book?.url).catch(err => {
+        const {chaps} = await getChaps(book?.url).catch(err => {
             console.log('>> Error: Can"t get chaps')
             return []
         })
