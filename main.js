@@ -5,7 +5,7 @@ const fs = require("fs")
 const {getCurrentDate, sleep} = require("./libs/until");
 const {setupTranslate} = require("./libs/translate");
 const {updateNewVersion} = require("./libs/update")
-
+const _ = require("lodash")
 const INPUT_DIR = './input';
 const OUTPUT_DIR = './output';
 
@@ -17,6 +17,7 @@ __  ___   ___   _ ____  _   _ _   _ ____
 /_/\\_\\ |_|  \\___/|____/|_| |_|\\___/|____/ 
 
          by jamesngdev (0971010421)
+                (v1.3.3)
 -----------------------------------------------
 `)
 
@@ -64,10 +65,13 @@ async function translateResult() {
         let tryCount = 0;
         while (tryCount < 5) {
             try {
-                const SPLITTER_CONTENT = '[[00]]';
-                const totalContent = [book?.name, book?.category, book?.intro].join(SPLITTER_CONTENT);
-                const translatedContent = await translateRetry(totalContent);
-                const [name, category, intro] = translatedContent.split(SPLITTER_CONTENT);
+                // const SPLITTER_CONTENT = '[[00]]';
+                // const totalContent = [book?.name, book?.category, book?.intro].join(SPLITTER_CONTENT);
+                // const translatedContent = await translateRetry(totalContent);
+                // const [name, category, intro] = translatedContent.split(SPLITTER_CONTENT);
+                const name = await translateRetry(book?.name);
+                const category = await translateRetry(book?.category);
+                const intro = await translateRetry(book?.intro);
                 console.log(">>> Done")
                 result.push({
                     bookId: book.bookId,
@@ -92,8 +96,14 @@ async function translateResult() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Result')
 
-    XLSX.writeFile(wb, `${OUTPUT_DIR}/${fileName}`)
-    console.log("Translated >> " + fileName)
+    const {prefix} = await inquirer.prompt([{
+        type: 'text',
+        name: 'prefix',
+        message: "File exist, please enter prefix: "
+    }]);
+
+    XLSX.writeFile(wb, `${OUTPUT_DIR}/${prefix}_${fileName}`)
+    console.log("Translated >> " + `${OUTPUT_DIR}/${prefix}_${fileName}`)
 }
 
 
@@ -165,18 +175,12 @@ const generateBookExcel = async () => {
             translateTo: ""
         }
     });
-    let excelName = `${category}_${from}_${to}_${getCurrentDate()}`
-    // Find if exists
-    const filePath = `${INPUT_DIR}/${excelName}`;
-    const existFile = fs.existsSync(filePath + ".xlsx");
-    if (existFile) {
-        const {prefix} = await inquirer.prompt([{
-            type: 'text',
-            name: 'prefix',
-            message: "File exist, please enter prefix: "
-        }]);
-        excelName += "_" + prefix;
-    }
+    const {prefix} = await inquirer.prompt([{
+        type: 'text',
+        name: 'prefix',
+        message: "File exist, please enter prefix: "
+    }]);
+    const excelName = `${prefix}_${category}_${from}_${to}_${getCurrentDate()}`
     // Save to excel
     const ws = XLSX.utils.json_to_sheet(excelData)
     const wb = XLSX.utils.book_new()
@@ -275,23 +279,62 @@ const translateBooks = async () => {
         }
     }
 
-    // Tổng số chap đã dịch được
-    // Tổng số chap lỗi
-    // Liệt kê chap lỗi (bao gồm các thông tin như: đường link chap, chap thuộc thư mục truyện nào, thuộc thư mục chap nào của truyện đó
+    function showResultMessage() {
+        const errorChapText = errorChaps.reduce((rs, chap) => {
+            rs += `${chap.chapUrl}\t${chap.bookId}\t${chap.category}\n`
+            return rs;
+        }, `url                  \tbook   \tcategory\n`);
 
-    const errorChapText = errorChaps.reduce((rs, chap) => {
-        rs += `${chap.chapUrl}\t${chap.bookId}\t${chap.category}\n`
-        return rs;
-    }, `url                  \tbook   \tcategory\n`);
+        console.log(`
+        -----------ALL DONE ----------------
+        Total: ${totalCount} 
+        Error: ${errorChaps?.length}
+        --------------------------
+        ${errorChapText}
+        ----------------------
+            `)
+    }
 
-    console.log(`
------------ALL DONE ----------------
-Total: ${totalCount} 
-Error: ${errorChaps?.length}
---------------------------
-${errorChapText}
-----------------------
-    `)
+    showResultMessage();
+
+    while (errorChaps?.length > 0) {
+        const {translateAgain} = await inquirer.prompt([{
+            type: 'confirm',
+            name: 'translateAgain',
+            message: "Would you want translate error chaps again?"
+        }]);
+        if (!translateAgain) {
+            break;
+        }
+
+        const cloneErrorChaps = _.cloneDeep(errorChaps);
+        for (let j = 0; j < cloneErrorChaps.length; j++) {
+            const chapTarget = cloneErrorChaps[j];
+            const MAX_TRY_TIME = 10;
+            let TRY_TIME = 0;
+            let success = false;
+            while (TRY_TIME < MAX_TRY_TIME) {
+                const translate = await translateChap(chapTarget, './result')
+                if (translate.status) {
+                    console.log("\t\t Success: " + translate.message)
+                    success = true;
+                    break;
+                } else {
+                    TRY_TIME++;
+                    console.log("\t\t Error: " + translate.message)
+                    if (translate.message === '404') {
+                        console.log(chapTarget.chapUrl)
+                        break;
+                    }
+                    await sleep(30 * 1000)
+                }
+            }
+            if (success) {
+                errorChaps = errorChaps.filter(target => target.bookId !== chapTarget.bookId)
+            }
+        }
+        showResultMessage();
+    }
 }
 
 const OPTIONS = {
