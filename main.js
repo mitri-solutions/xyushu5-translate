@@ -106,6 +106,9 @@ async function translateResult() {
     console.log("Translated >> " + `${OUTPUT_DIR}/${prefix}_${fileName}`)
 }
 
+const createPageUrl = (category, pageNumber) => {
+    return `${category}/${pageNumber}/`;
+}
 
 const generateBookExcel = async () => {
     // Enter the link
@@ -113,10 +116,10 @@ const generateBookExcel = async () => {
         type: 'input',
         name: 'url',
         message: "Enter category url: ",
-        default: "https://www.xyushu5.com/sort3/1/"
+        default: "https://www.xyushu5.com/sort3"
     }]);
 
-    const {pagination, category} = await getBooks(url);
+    const {pagination, category} = await getBooks(createPageUrl(url, 1));
     const {paginations, totalPage} = pagination;
 
     console.log(">> Total page: " + totalPage)
@@ -132,12 +135,14 @@ const generateBookExcel = async () => {
 
     console.log(">>> Wait a moment...")
 
-    const getBookOfPage = async (pageNumber) => {
-        const page = paginations?.find(page => page.label == pageNumber.toString());
-        if (!page?.href) {
-            return [];
-        }
-        const {items: books} = await getBooks(page.href);
+    const getBookOfPage = async (pageUrl) => {
+        // const page = paginations?.find(page => page.label == pageNumber.toString());
+        // if (!page?.href) {
+        //     return [];
+        // }
+        const {items: books} = await getBooks(pageUrl);
+
+        console.log("page", pageUrl);
 
         const _books = await Promise.all(books?.map(book => {
             return new Promise(async (resolve) => {
@@ -160,7 +165,7 @@ const generateBookExcel = async () => {
         resultBooks.push(i);
     }
 
-    const books = await Promise.all(resultBooks?.map((num) => getBookOfPage(num)))
+    const books = await Promise.all(resultBooks?.map((num) => getBookOfPage(createPageUrl(url, num))))
 
     // ID Truyện, Tên Truyện, Tên Tác Giả, Thể Loại, Tóm Tắt Truyện, Link, Chap dịch từ
     const excelData = books?.flat(1)?.map((item) => {
